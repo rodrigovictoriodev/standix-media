@@ -6,7 +6,9 @@ import {
   Req,
   UnauthorizedException,
 } from "@nestjs/common";
+import { IsEmail, IsString, MaxLength, MinLength } from "class-validator";
 import type { Request } from "express";
+import { MIN_PASSWORD_LENGTH } from "./auth.constants";
 import { AuthService } from "./auth.service";
 import { CurrentUser } from "./current-user.decorator";
 import { LoginDto } from "./dto/login.dto";
@@ -15,16 +17,30 @@ import { AuthenticatedUser } from "./jwt-auth.guard";
 import { Public } from "./public.decorator";
 
 class ForgotPasswordDto {
+  @IsEmail()
   email!: string;
 }
 
 class ResetPasswordDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(256)
   token!: string;
+
+  @IsString()
+  @MinLength(MIN_PASSWORD_LENGTH)
+  @MaxLength(256)
   password!: string;
 }
 
 class ChangePasswordDto {
+  @IsString()
+  @MinLength(1)
   currentPassword!: string;
+
+  @IsString()
+  @MinLength(MIN_PASSWORD_LENGTH)
+  @MaxLength(256)
   newPassword!: string;
 }
 

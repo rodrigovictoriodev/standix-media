@@ -76,19 +76,16 @@ export class RealtimeGateway {
   @SubscribeMessage("screen:join")
   async joinScreen(
     @ConnectedSocket() client: ClientSocket,
-    @MessageBody() body: { screen?: string; groupId?: string },
+    @MessageBody() body: { screen?: string; groupId?: string; teamId?: string },
   ) {
-    const screen = body?.screen as ScreenKind | undefined;
-    if (!screen || !["main", "stage", "live", "aux"].includes(screen)) {
-      throw new WsException("Invalid screen identifier");
-    }
+    const screen = this.parseScreen(body?.screen);
+    const teamId = await this.authorizeTeam(client, body?.teamId, "screens:read");
 
     const groupId = body.groupId ?? "production";
-    this.screens.joinSession(client.id, screen, groupId);
-    await client.join(`screen:${screen}`);
-    await client.join(`screen-group:${groupId}`);
+    this.screens.joinSession(client.id, teamId, screen, groupId);
+    await client.join(this.screenRoom(teamId, screen));
 
-    const state = this.screens.getState(screen);
+    const state = this.screens.getState(teamId, screen);
     client.emit("screen:state", { screen, groupId, state });
     return { screen, groupId, state };
   }
@@ -96,14 +93,13 @@ export class RealtimeGateway {
   @SubscribeMessage("screen:update-state")
   async updateScreenState(
     @ConnectedSocket() client: ClientSocket,
-    @MessageBody() body: { screen?: string; state?: Record<string, unknown> },
+    @MessageBody()
+    body: { screen?: string; teamId?: string; state?: Record<string, unknown> },
   ) {
-    const screen = body?.screen as ScreenKind | undefined;
-    if (!screen || !["main", "stage", "live", "aux"].includes(screen)) {
-      throw new WsException("Invalid screen identifier");
-    }
+    const screen = this.parseScreen(body?.screen);
+    const teamId = await this.authorizeTeam(client, body?.teamId, "screens:operate");
 
-    const state = this.screens.setState(screen, {
+    const state = this.screens.setState(teamId, screen, {
       title: typeof body.state?.title === "string" ? body.state.title : undefined,
       subtitle: typeof body.state?.subtitle === "string" ? body.state.subtitle : undefined,
       status: typeof body.state?.status === "string" ? (body.state.status as any) : undefined,
@@ -113,7 +109,7 @@ export class RealtimeGateway {
       metadata: typeof body.state?.metadata === "object" ? (body.state.metadata as Record<string, unknown>) : undefined,
     });
 
-    this.server.to(`screen:${screen}`).emit("screen:state-change", {
+    this.server.to(this.screenRoom(teamId, screen)).emit("screen:state-change", {
       screen,
       state,
     });
@@ -123,16 +119,36 @@ export class RealtimeGateway {
   @SubscribeMessage("screen:request-state")
   async getScreenState(
     @ConnectedSocket() client: ClientSocket,
-    @MessageBody() body: { screen?: string },
+    @MessageBody() body: { screen?: string; teamId?: string },
   ) {
-    const screen = body?.screen as ScreenKind | undefined;
-    if (!screen || !["main", "stage", "live", "aux"].includes(screen)) {
-      throw new WsException("Invalid screen identifier");
-    }
+    const screen = this.parseScreen(body?.screen);
+    const teamId = await this.authorizeTeam(client, body?.teamId, "screens:read");
 
-    const state = this.screens.getState(screen);
+    const state = this.screens.getState(teamId, screen);
     client.emit("screen:state", { screen, state });
     return { screen, state };
+  }
+
+  private parseScreen(value: unknown): ScreenKind {
+    if (typeof value !== "string" || !["main", "stage", "live", "aux"].includes(value)) {
+      throw new WsException("Invalid screen identifier");
+    }
+    return value as ScreenKind;
+  }
+
+  private async authorizeTeam(client: ClientSocket, teamId: unknown, permission: string) {
+    const userId = client.data.userId;
+    if (!userId || typeof teamId !== "string" || !teamId) {
+      throw new WsException("A team is required for screen operations");
+    }
+    if (!(await this.hasPermission(userId, permission, teamId))) {
+      throw new WsException("Not authorized for this team's screens");
+    }
+    return teamId;
+  }
+
+  private screenRoom(teamId: string, screen: ScreenKind) {
+    return `team:${teamId}:screen:${screen}`;
   }
 
   async broadcastPresentation(presentationId: string) {

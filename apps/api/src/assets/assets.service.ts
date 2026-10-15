@@ -573,7 +573,8 @@ export class AssetsService {
     const { join } = await import("node:path");
 
     const tempDir = mkdtempSync(join(tmpdir(), "standix-assets-"));
-    const tempFile = join(tempDir, file.originalname || `asset-${Date.now()}`);
+    // Never derive the path from the client-supplied filename.
+    const tempFile = join(tempDir, "input");
     writeFileSync(tempFile, file.buffer);
 
     try {

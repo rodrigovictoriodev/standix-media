@@ -9,6 +9,7 @@ import { createHash, randomUUID } from "node:crypto";
 import * as argon2 from "argon2";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "./audit.service";
+import { MIN_PASSWORD_LENGTH } from "./auth.constants";
 import { PasswordResetTokenService } from "./password-reset-token.service";
 
 export type TokenPayload = {
@@ -168,16 +169,20 @@ export class AuthService {
   }
 
   async forgotPassword(email: string, context?: AuditContext) {
+    const response = {
+      success: true,
+      message: "If an account exists, a reset email has been sent.",
+    };
     const normalizedEmail = email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
       where: { email: normalizedEmail },
-      select: { id: true, email: true },
+      select: { id: true, status: true },
     });
-    if (!user) {
-      return { success: true, message: "If an account exists, a reset email has been sent." };
-    }
+    if (!user || user.status !== "ACTIVE") return response;
 
-    const { token } = await this.passwordResetTokens.createForUser(user.id);
+    // The token is only ever delivered out-of-band (e-mail). It must never be
+    // part of the HTTP response or of the audit trail.
+    await this.passwordResetTokens.createForUser(user.id);
     await this.audit.record({
       userId: user.id,
       action: "auth.forgot_password",
@@ -185,17 +190,13 @@ export class AuthService {
       entityId: user.id,
       ipAddress: context?.ipAddress,
       userAgent: context?.userAgent,
-      metadata: { resetTokenIssued: true, tokenPreview: token.slice(0, 8) },
+      metadata: { resetTokenIssued: true },
     });
-    return {
-      success: true,
-      message: "If an account exists, a reset email has been sent.",
-      resetToken: token,
-    };
+    return response;
   }
 
   async resetPassword(token: string, newPassword: string, context?: AuditContext) {
-    if (!token || newPassword.length < 8) {
+    if (!token || newPassword.length < MIN_PASSWORD_LENGTH) {
       throw new BadRequestException("A valid reset token and a strong password are required.");
     }
 
@@ -235,8 +236,10 @@ export class AuthService {
     newPassword: string,
     context?: AuditContext,
   ) {
-    if (newPassword.length < 8) {
-      throw new BadRequestException("A new password with at least 8 characters is required.");
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      throw new BadRequestException(
+        `A new password with at least ${MIN_PASSWORD_LENGTH} characters is required.`,
+      );
     }
 
     const user = await this.prisma.user.findUnique({

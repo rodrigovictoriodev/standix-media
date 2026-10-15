@@ -29,6 +29,7 @@ export class PolicyService {
     return Boolean(assignment);
   }
 
+  /** True only when the user holds every permission in the list. */
   async hasPermissions(
     userId: string,
     permissions: string[],
@@ -36,21 +37,15 @@ export class PolicyService {
   ): Promise<boolean> {
     if (!permissions.length) return true;
     const teamScope = teamId ? [{ teamId: null }, { teamId }] : [{ teamId: null }];
-    const assignment = await this.prisma.userRole.findFirst({
+    const grants = await this.prisma.rolePermission.findMany({
       where: {
-        userId,
-        OR: teamScope,
-        role: {
-          permissions: {
-            some: {
-              permission: { key: { in: permissions } },
-            },
-          },
-        },
+        permission: { key: { in: permissions } },
+        role: { userRoles: { some: { userId, OR: teamScope } } },
       },
-      select: { id: true },
+      select: { permission: { select: { key: true } } },
     });
-    return Boolean(assignment);
+    const granted = new Set(grants.map(({ permission }) => permission.key));
+    return permissions.every((permission) => granted.has(permission));
   }
 
   async hasRole(

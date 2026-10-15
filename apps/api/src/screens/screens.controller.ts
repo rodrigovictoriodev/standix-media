@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Query } from "@nestjs/common";
 import { Permissions } from "../auth/permissions.decorator";
 import { ScreensService, type ScreenKind } from "./screens.service";
 
@@ -16,16 +16,24 @@ export class ScreensController {
 
   @Get("state")
   @Permissions("screens:read")
-  getState(@Query("screen") screen?: string) {
+  getState(
+    @Headers("x-team-id") teamId: string | undefined,
+    @Query("screen") screen?: string,
+  ) {
+    if (!teamId) throw new BadRequestException("The x-team-id header is required");
     if (!screen || !allowedScreens.includes(screen as ScreenKind)) {
       throw new BadRequestException("A valid screen identifier is required");
     }
-    return { screen, state: this.screens.getState(screen as ScreenKind) };
+    return { screen, state: this.screens.getState(teamId, screen as ScreenKind) };
   }
 
   @Post("state")
   @Permissions("screens:operate")
-  setState(@Body() body: Record<string, unknown>) {
+  setState(
+    @Headers("x-team-id") teamId: string | undefined,
+    @Body() body: Record<string, unknown>,
+  ) {
+    if (!teamId) throw new BadRequestException("The x-team-id header is required");
     const screen = typeof body.screen === "string" ? body.screen : undefined;
     if (!screen || !allowedScreens.includes(screen as ScreenKind)) {
       throw new BadRequestException("A valid screen identifier is required");
@@ -33,7 +41,7 @@ export class ScreensController {
 
     return {
       screen,
-      state: this.screens.setState(screen as ScreenKind, {
+      state: this.screens.setState(teamId, screen as ScreenKind, {
         title: typeof body.title === "string" ? body.title : undefined,
         subtitle: typeof body.subtitle === "string" ? body.subtitle : undefined,
         status: typeof body.status === "string" ? (body.status as any) : undefined,
@@ -47,10 +55,14 @@ export class ScreensController {
 
   @Get(":screen")
   @Permissions("screens:read")
-  getScreen(@Param("screen") screen: string) {
+  getScreen(
+    @Headers("x-team-id") teamId: string | undefined,
+    @Param("screen") screen: string,
+  ) {
+    if (!teamId) throw new BadRequestException("The x-team-id header is required");
     if (!allowedScreens.includes(screen as ScreenKind)) {
       throw new BadRequestException("A valid screen identifier is required");
     }
-    return { screen, state: this.screens.getState(screen as ScreenKind) };
+    return { screen, state: this.screens.getState(teamId, screen as ScreenKind) };
   }
 }

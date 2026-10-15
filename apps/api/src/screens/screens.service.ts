@@ -26,37 +26,45 @@ export class ScreensService {
     ["stage", { id: "stage", name: "Stage control", screens: ["stage", "aux"] }],
   ]);
 
-  private readonly states = new Map<ScreenKind, ScreenState>([
+  private readonly initialStates = new Map<ScreenKind, ScreenState>([
     ["main", { title: "Tela principal", subtitle: "Pronto para projeção", status: "ready", content: "Conteúdo aguardando comando da operação", updatedAt: new Date().toISOString() }],
     ["stage", { title: "Stage", subtitle: "Monitor de palco", status: "idle", content: "Aguardando reprodução de cenário", updatedAt: new Date().toISOString() }],
     ["live", { title: "Live", subtitle: "Saída web e transmissão", status: "live", content: "Transmissão ativa", updatedAt: new Date().toISOString() }],
     ["aux", { title: "Auxiliar", subtitle: "Operação secundária", status: "ready", content: "Atalhos e comandos auxiliares disponíveis", updatedAt: new Date().toISOString() }],
   ]);
 
-  private readonly sessions = new Map<string, { clientId: string; screen: ScreenKind; groupId: string; connectedAt: Date }>();
+  // Screen output is isolated per team: one team can never read or drive
+  // another team's screens.
+  private readonly states = new Map<string, ScreenState>();
+
+  private readonly sessions = new Map<string, { clientId: string; teamId: string; screen: ScreenKind; groupId: string; connectedAt: Date }>();
 
   listGroups() {
     return [...this.groups.values()];
   }
 
-  getState(screen: ScreenKind) {
-    return this.states.get(screen) ?? this.defaultState(screen);
+  getState(teamId: string, screen: ScreenKind) {
+    return (
+      this.states.get(`${teamId}:${screen}`) ??
+      this.initialStates.get(screen) ??
+      this.defaultState(screen)
+    );
   }
 
-  setState(screen: ScreenKind, state: Partial<ScreenState>) {
-    const current = this.getState(screen);
+  setState(teamId: string, screen: ScreenKind, state: Partial<ScreenState>) {
+    const current = this.getState(teamId, screen);
     const next: ScreenState = {
       ...current,
       ...state,
       updatedAt: new Date().toISOString(),
     };
-    this.states.set(screen, next);
+    this.states.set(`${teamId}:${screen}`, next);
     return next;
   }
 
-  joinSession(clientId: string, screen: ScreenKind, groupId = "production") {
-    this.sessions.set(clientId, { clientId, screen, groupId, connectedAt: new Date() });
-    return this.getState(screen);
+  joinSession(clientId: string, teamId: string, screen: ScreenKind, groupId = "production") {
+    this.sessions.set(clientId, { clientId, teamId, screen, groupId, connectedAt: new Date() });
+    return this.getState(teamId, screen);
   }
 
   leaveSession(clientId: string) {

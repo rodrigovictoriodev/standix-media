@@ -53,8 +53,9 @@ export function ScreenLiveView({ screen }: { screen: ScreenSlug }) {
 
   useEffect(() => {
     const accessToken = window.localStorage.getItem("standix-access-token");
+    const teamId = window.localStorage.getItem("standix-team-id");
 
-    if (!accessToken) {
+    if (!accessToken || !teamId) {
       setTransport("demo");
       setConnected(false);
       setState(baseState[screen]);
@@ -70,7 +71,7 @@ export function ScreenLiveView({ screen }: { screen: ScreenSlug }) {
     socket.on("connect", () => {
       setConnected(true);
       setTransport(socket.io.engine.transport.name);
-      socket.emit("screen:join", { screen, groupId: "production" });
+      socket.emit("screen:join", { screen, teamId, groupId: "production" });
     });
 
     socket.on("disconnect", () => {

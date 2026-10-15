@@ -98,4 +98,38 @@ describe("AuthService", () => {
     );
     expect(jwt.signAsync).not.toHaveBeenCalled();
   });
+
+  it("never exposes the reset token and answers identically for unknown e-mails", async () => {
+    const prisma = {
+      user: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValueOnce({ id: "user-3", status: "ACTIVE" })
+          .mockResolvedValueOnce(null),
+      },
+    };
+    const audit = { record: vi.fn().mockResolvedValue({}) };
+    const reset = {
+      createForUser: vi
+        .fn()
+        .mockResolvedValue({ token: "secret-reset-token", expiresAt: new Date() }),
+      verify: vi.fn(),
+      revoke: vi.fn(),
+    };
+    const service = new AuthService(
+      prisma as any,
+      { signAsync: vi.fn() } as any,
+      audit as any,
+      reset as any,
+      config as any,
+    );
+
+    const known = await service.forgotPassword("ops@standix.io");
+    const unknown = await service.forgotPassword("nobody@standix.io");
+
+    expect(known).toEqual(unknown);
+    expect(JSON.stringify(known)).not.toContain("secret-reset-token");
+    expect(JSON.stringify(audit.record.mock.calls)).not.toContain("secret");
+    expect(reset.createForUser).toHaveBeenCalledTimes(1);
+  });
 });
