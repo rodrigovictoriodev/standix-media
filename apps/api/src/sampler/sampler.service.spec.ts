@@ -1,6 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { describe, expect, it, vi } from "vitest";
+import { StorageService } from "../storage/storage.service";
 import { SamplerService } from "./sampler.service";
 
 describe("SamplerService", () => {
@@ -11,6 +12,7 @@ describe("SamplerService", () => {
     MINIO_ACCESS_KEY: "test",
     MINIO_SECRET_KEY: "test-secret",
   });
+  const storage = new StorageService(config);
 
   it("rejects cue references to non-audio assets", async () => {
     const prisma = {
@@ -18,7 +20,7 @@ describe("SamplerService", () => {
       cueBank: { findFirst: vi.fn() },
       audioCue: { findFirst: vi.fn() },
     };
-    const service = new SamplerService(prisma as any, config);
+    const service = new SamplerService(prisma as any, storage);
 
     await expect(
       service.createCue("team-1", { name: "Click", assetId: "image-1" }),
@@ -34,7 +36,7 @@ describe("SamplerService", () => {
         create: vi.fn(),
       },
     };
-    const service = new SamplerService(prisma as any, config);
+    const service = new SamplerService(prisma as any, storage);
 
     await expect(
       service.createCue("team-1", {
@@ -52,7 +54,7 @@ describe("SamplerService", () => {
       cueBank: { findFirst: vi.fn() },
       audioCue: { findFirst: vi.fn(), create: vi.fn() },
     };
-    const service = new SamplerService(prisma as any, config);
+    const service = new SamplerService(prisma as any, storage);
 
     await expect(
       service.createCue("team-1", {

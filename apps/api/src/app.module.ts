@@ -14,11 +14,13 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { AuditModule } from "./audit/audit.module";
 import { InitializationModule } from "./initialization/initialization.module";
+import { StorageModule } from "./storage/storage.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    StorageModule,
     AuthModule,
     AssetsModule,
     EventsModule,

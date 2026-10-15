@@ -3,29 +3,15 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { Client as MinioClient } from "minio";
 import { PrismaService } from "../prisma/prisma.service";
-import { createPublicStorageClient } from "../assets/public-storage";
+import { StorageService } from "../storage/storage.service";
 
 @Injectable()
 export class SamplerService {
-  private readonly storage: MinioClient;
-  private readonly publicStorage: MinioClient;
-
   constructor(
     private readonly prisma: PrismaService,
-    config: ConfigService,
-  ) {
-    this.storage = new MinioClient({
-      endPoint: config.get<string>("MINIO_ENDPOINT") ?? "localhost",
-      port: Number(config.get<string>("MINIO_PORT") ?? "9000"),
-      useSSL: config.get<string>("MINIO_USE_SSL") === "true",
-      accessKey: config.getOrThrow<string>("MINIO_ACCESS_KEY"),
-      secretKey: config.getOrThrow<string>("MINIO_SECRET_KEY"),
-    });
-    this.publicStorage = createPublicStorageClient(config, this.storage);
-  }
+    private readonly storage: StorageService,
+  ) {}
 
   listBanks(teamId: string) {
     return this.prisma.cueBank.findMany({
@@ -301,6 +287,6 @@ export class SamplerService {
   }
 
   private async presign(bucket: string, key: string) {
-    return this.publicStorage.presignedGetObject(bucket, key, 15 * 60);
+    return this.storage.signedUrl(bucket, key);
   }
 }

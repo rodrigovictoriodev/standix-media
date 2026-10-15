@@ -4,20 +4,30 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   UploadedFile,
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { AssetKind } from "@prisma/client";
 import { AuthenticatedRequest } from "../auth/jwt-auth.guard";
 import { Permissions } from "../auth/permissions.decorator";
+import { TeamId } from "../auth/team-id.decorator";
+import {
+  CreateFolderBody,
+  ListAssetsQuery,
+  SetAssetTagsBody,
+  UpdateAssetBody,
+  UpdateFolderBody,
+  UploadAssetBody,
+} from "./assets.dto";
 import { AssetsService } from "./assets.service";
+
+export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
 @Controller("assets")
 export class AssetsController {
@@ -25,165 +35,125 @@ export class AssetsController {
 
   @Get()
   @Permissions("assets:read")
-  list(
-    @Headers("x-team-id") teamId: string | undefined,
-    @Query("folderId") folderId?: string,
-    @Query("search") search?: string,
-    @Query("favorite") favorite?: string,
-    @Query("trashed") trashed?: string,
-    @Query("kind") kind?: AssetKind,
-  ) {
-    if (!teamId)
-      throw new BadRequestException("The x-team-id header is required");
-    return this.assets.listAssets(teamId, {
-      folderId,
-      search,
-      favorite: favorite === "true",
-      trashed: trashed === "true",
-      kind,
-    });
+  list(@TeamId() teamId: string, @Query() query: ListAssetsQuery) {
+    return this.assets.listAssets(teamId, query);
   }
 
   @Post("upload")
   @Permissions("assets:create")
   @UseInterceptors(
-    FileInterceptor("file", {
-      limits: { fileSize: 100 * 1024 * 1024 },
-    }),
+    FileInterceptor("file", { limits: { fileSize: MAX_UPLOAD_BYTES } }),
   )
   upload(
+    @TeamId() teamId: string,
     @UploadedFile() file: Express.Multer.File | undefined,
-    @Headers("x-team-id") teamId: string | undefined,
     @Req() request: AuthenticatedRequest,
-    @Body() body: Record<string, unknown>,
+    @Body() body: UploadAssetBody,
   ) {
     if (!file) throw new BadRequestException("A file must be provided");
-    if (!teamId)
-      throw new BadRequestException("The x-team-id header is required");
-
-    const folderId =
-      typeof body.folderId === "string" ? body.folderId : undefined;
-    const rawTags = body.tags;
-    const tags = Array.isArray(rawTags)
-      ? rawTags.filter((tag): tag is string => typeof tag === "string")
-      : typeof rawTags === "string"
-        ? rawTags
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean)
-        : [];
-
     return this.assets.create(teamId, request.user.id, file, {
-      folderId,
-      tags,
+      folderId: body.folderId,
+      tags: body.tags?.split(",") ?? [],
     });
-  }
-
-  @Post("folders")
-  @Permissions("assets:create")
-  createFolder(
-    @Headers("x-team-id") teamId: string | undefined,
-    @Body("name") name: string,
-    @Body("parentId") parentId?: string,
-  ) {
-    if (!teamId)
-      throw new BadRequestException("The x-team-id header is required");
-    return this.assets.createFolder(teamId, name, parentId);
   }
 
   @Get("folders")
   @Permissions("assets:read")
-  listFolders(
-    @Headers("x-team-id") teamId: string | undefined,
-    @Query("parentId") parentId?: string,
+  listFolders(@TeamId() teamId: string) {
+    return this.assets.listFolders(teamId);
+  }
+
+  @Post("folders")
+  @Permissions("assets:create")
+  createFolder(@TeamId() teamId: string, @Body() body: CreateFolderBody) {
+    return this.assets.createFolder(teamId, body.name, body.parentId);
+  }
+
+  @Patch("folders/:folderId")
+  @Permissions("assets:update")
+  updateFolder(
+    @TeamId() teamId: string,
+    @Param("folderId") folderId: string,
+    @Body() body: UpdateFolderBody,
   ) {
-    if (!teamId)
-      throw new BadRequestException("The x-team-id header is required");
-    return this.assets.listFolders(teamId, parentId);
+    return this.assets.updateFolder(teamId, folderId, body);
+  }
+
+  @Delete("folders/:folderId")
+  @Permissions("assets:update")
+  deleteFolder(@TeamId() teamId: string, @Param("folderId") folderId: string) {
+    return this.assets.deleteFolder(teamId, folderId);
+  }
+
+  @Get("tags")
+  @Permissions("assets:read")
+  listTags(@TeamId() teamId: string) {
+    return this.assets.listTags(teamId);
+  }
+
+  @Get(":id")
+  @Permissions("assets:read")
+  getAsset(@TeamId() teamId: string, @Param("id") id: string) {
+    return this.assets.getAsset(teamId, id);
   }
 
   @Get(":id/url")
   @Permissions("assets:read")
   getDownloadUrl(
-    @Headers("x-team-id") teamId: string | undefined,
+    @TeamId() teamId: string,
     @Param("id") id: string,
+    @Query("download") download?: string,
   ) {
-    if (!teamId)
-      throw new BadRequestException("The x-team-id header is required");
-    return this.assets.getDownloadUrl(teamId, id);
+    return this.assets.getDownloadUrl(teamId, id, download === "true");
   }
 
   @Get(":id/usage")
   @Permissions("assets:read")
-  getAssetUsage(
-    @Headers("x-team-id") teamId: string | undefined,
-    @Param("id") id: string,
-  ) {
-    if (!teamId)
-      throw new BadRequestException("The x-team-id header is required");
-    return this.assets.getAssetUsage(teamId, id);
+  getAssetUsage(@TeamId() teamId: string, @Param("id") id: string) {
+    return this.assets.getAssetReferences(teamId, id);
   }
 
   @Patch(":id")
   @Permissions("assets:update")
   updateAsset(
-    @Headers("x-team-id") teamId: string | undefined,
+    @TeamId() teamId: string,
     @Param("id") id: string,
-    @Body() body: Record<string, unknown>,
+    @Body() body: UpdateAssetBody,
   ) {
-    if (!teamId)
-      throw new BadRequestException("The x-team-id header is required");
-    return this.assets.updateAsset(teamId, id, {
-      displayName:
-        typeof body.displayName === "string" ? body.displayName : undefined,
-      folderId:
-        body.folderId === null || typeof body.folderId === "string"
-          ? body.folderId
-          : undefined,
-    });
+    return this.assets.updateAsset(teamId, id, body);
   }
 
-  @Patch("/:id/favorite")
+  @Put(":id/tags")
   @Permissions("assets:update")
-  toggleFavorite(
-    @Headers("x-team-id") teamId: string | undefined,
+  setTags(
+    @TeamId() teamId: string,
     @Param("id") id: string,
+    @Body() body: SetAssetTagsBody,
   ) {
-    if (!teamId)
-      throw new BadRequestException("The x-team-id header is required");
+    return this.assets.setTags(teamId, id, body.tags);
+  }
+
+  @Patch(":id/favorite")
+  @Permissions("assets:update")
+  toggleFavorite(@TeamId() teamId: string, @Param("id") id: string) {
     return this.assets.toggleFavorite(teamId, id);
   }
 
-  @Patch("/:id/trash")
+  @Patch(":id/trash")
   @Permissions("assets:update")
-  trashAsset(
-    @Headers("x-team-id") teamId: string | undefined,
-    @Param("id") id: string,
-  ) {
-    if (!teamId)
-      throw new BadRequestException("The x-team-id header is required");
+  trashAsset(@TeamId() teamId: string, @Param("id") id: string) {
     return this.assets.trashAsset(teamId, id);
   }
 
-  @Patch("/:id/restore")
+  @Patch(":id/restore")
   @Permissions("assets:update")
-  restoreAsset(
-    @Headers("x-team-id") teamId: string | undefined,
-    @Param("id") id: string,
-  ) {
-    if (!teamId)
-      throw new BadRequestException("The x-team-id header is required");
+  restoreAsset(@TeamId() teamId: string, @Param("id") id: string) {
     return this.assets.restoreAsset(teamId, id);
   }
 
-  @Delete("/:id")
+  @Delete(":id")
   @Permissions("assets:delete")
-  deleteAsset(
-    @Headers("x-team-id") teamId: string | undefined,
-    @Param("id") id: string,
-  ) {
-    if (!teamId)
-      throw new BadRequestException("The x-team-id header is required");
+  deleteAsset(@TeamId() teamId: string, @Param("id") id: string) {
     return this.assets.deleteAsset(teamId, id);
   }
 }

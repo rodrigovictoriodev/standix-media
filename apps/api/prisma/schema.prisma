@@ -56,17 +56,17 @@ enum ScreenType {
 }
 
 model User {
-  id               String          @id @default(cuid())
-  email            String          @unique
+  id               String               @id @default(cuid())
+  email            String               @unique
   name             String
   passwordHash     String
-  status           UserStatus      @default(ACTIVE)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  status           UserStatus           @default(ACTIVE)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
   userRoles        UserRole[]
-  teamMemberships   TeamMembership[]
-  assets           Asset[]         @relation("AssetOwner")
-  presentations    Presentation[]  @relation("PresentationOwner")
+  teamMemberships  TeamMembership[]
+  assets           Asset[]              @relation("AssetOwner")
+  presentations    Presentation[]       @relation("PresentationOwner")
   eventMemberships EventMember[]
   auditLogs        AuditLog[]
   refreshTokens    RefreshToken[]
@@ -162,28 +162,28 @@ model UserRole {
 }
 
 model Asset {
-  id           String      @id @default(cuid())
-  teamId       String
-  ownerId      String?
-  folderId     String?
-  blobId       String
-  kind         AssetKind
-  filename     String
-  displayName  String      @default("")
-  metadata     Json         @default("{}")
-  isFavorite   Boolean      @default(false)
-  deletedAt    DateTime?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  team         Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  owner        User?        @relation("AssetOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  folder       AssetFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  blob         MediaBlob    @relation(fields: [blobId], references: [id], onDelete: Restrict)
-  tags         AssetTag[]
-  slides       Slide[]
-  scenes       Scene[]      @relation("SceneAsset")
-  audioCues    AudioCue[]
-  videoCues    VideoCue[]
+  id          String       @id @default(cuid())
+  teamId      String
+  ownerId     String?
+  folderId    String?
+  blobId      String
+  kind        AssetKind
+  filename    String
+  displayName String       @default("")
+  metadata    Json         @default("{}")
+  isFavorite  Boolean      @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  team        Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  owner       User?        @relation("AssetOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  folder      AssetFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  blob        MediaBlob    @relation(fields: [blobId], references: [id], onDelete: Restrict)
+  tags        AssetTag[]
+  slides      Slide[]
+  scenes      Scene[]      @relation("SceneAsset")
+  audioCues   AudioCue[]
+  videoCues   VideoCue[]
 
   @@index([teamId, kind, createdAt])
   @@index([folderId])
@@ -199,6 +199,8 @@ model MediaBlob {
   sizeBytes     BigInt
   storageBucket String
   storageKey    String
+  /// Derived WebP preview stored in the same bucket; null when unavailable.
+  thumbnailKey  String?
   createdAt     DateTime @default(now())
   assets        Asset[]
 
@@ -213,12 +215,15 @@ model AssetFolder {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
   team      Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  parent    AssetFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  parent    AssetFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Restrict)
   children  AssetFolder[] @relation("FolderTree")
   assets    Asset[]
 
+  // Root folders (parentId NULL) are kept unique by the partial index
+  // "AssetFolder_teamId_root_name_key" created in migration 202610150001.
   @@unique([teamId, parentId, name])
   @@index([teamId])
+  @@index([parentId])
 }
 
 model AssetTag {
@@ -235,15 +240,15 @@ model AssetTag {
 }
 
 model Category {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   teamId      String
   name        String
   slug        String
-  color       String?   @default("#2563FF")
+  color       String?  @default("#2563FF")
   description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   events      Event[]
 
   @@unique([teamId, slug])
@@ -251,27 +256,27 @@ model Category {
 }
 
 model Event {
-  id           String        @id @default(cuid())
-  teamId       String
-  categoryId   String?
-  name         String
-  description  String?
-  category     EventCategory @default(OTHER)
-  status       EventStatus   @default(DRAFT)
-  startsAt     DateTime?
-  endsAt       DateTime?
-  timezone     String        @default("UTC")
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  team         Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  categoryRef  Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  id            String         @id @default(cuid())
+  teamId        String
+  categoryId    String?
+  name          String
+  description   String?
+  category      EventCategory  @default(OTHER)
+  status        EventStatus    @default(DRAFT)
+  startsAt      DateTime?
+  endsAt        DateTime?
+  timezone      String         @default("UTC")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  team          Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  categoryRef   Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   presentations Presentation[]
-  scenes       Scene[]
-  screens      Screen[]
-  audioCues    AudioCue[]
-  videoCues    VideoCue[]
-  members      EventMember[]
-  auditLogs    AuditLog[]
+  scenes        Scene[]
+  screens       Screen[]
+  audioCues     AudioCue[]
+  videoCues     VideoCue[]
+  members       EventMember[]
+  auditLogs     AuditLog[]
 
   @@index([teamId, status, startsAt])
 }
@@ -292,45 +297,45 @@ model EventMember {
 }
 
 model Presentation {
-  id              String   @id @default(cuid())
-  teamId          String
-  eventId         String?
-  ownerId         String?
-  activeSlideId   String?
-  title           String
-  description     String?
-  layout          Json     @default("{}")
-  sourceFormat    String   @default("native")
-  sourceMetadata  Json     @default("{}")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  event           Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
-  owner           User?    @relation("PresentationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  slides          Slide[]  @relation("PresentationSlides")
-  activeSlide     Slide?   @relation("ActiveSlide", fields: [activeSlideId], references: [id], onDelete: SetNull)
-  scenes          Scene[]
+  id             String   @id @default(cuid())
+  teamId         String
+  eventId        String?
+  ownerId        String?
+  activeSlideId  String?
+  title          String
+  description    String?
+  layout         Json     @default("{}")
+  sourceFormat   String   @default("native")
+  sourceMetadata Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  event          Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  owner          User?    @relation("PresentationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  slides         Slide[]  @relation("PresentationSlides")
+  activeSlide    Slide?   @relation("ActiveSlide", fields: [activeSlideId], references: [id], onDelete: SetNull)
+  scenes         Scene[]
 
   @@index([teamId, updatedAt])
   @@index([eventId])
 }
 
 model Slide {
-  id             String       @id @default(cuid())
+  id             String         @id @default(cuid())
   presentationId String
   assetId        String?
-  type           SlideType    @default(TEXT)
+  type           SlideType      @default(TEXT)
   orderIndex     Int
-  thumbnailUrl  String?
-  layout         Json          @default("{}")
-  content        Json          @default("{}")
+  thumbnailUrl   String?
+  layout         Json           @default("{}")
+  content        Json           @default("{}")
   durationMs     Int?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  presentation   Presentation  @relation("PresentationSlides", fields: [presentationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  presentation   Presentation   @relation("PresentationSlides", fields: [presentationId], references: [id], onDelete: Cascade)
   activeFor      Presentation[] @relation("ActiveSlide")
-  asset          Asset?        @relation(fields: [assetId], references: [id], onDelete: Restrict)
-  scenes         Scene[]       @relation("SceneSlide")
+  asset          Asset?         @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  scenes         Scene[]        @relation("SceneSlide")
 
   @@unique([presentationId, orderIndex])
   @@index([assetId])
@@ -344,14 +349,14 @@ model Scene {
   presentationId String?
   slideId        String?
   assetId        String?
-  settings       Json           @default("{}")
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  event          Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  presentation   Presentation?  @relation(fields: [presentationId], references: [id], onDelete: SetNull)
-  slide          Slide?         @relation("SceneSlide", fields: [slideId], references: [id], onDelete: SetNull)
-  asset          Asset?         @relation("SceneAsset", fields: [assetId], references: [id], onDelete: Restrict)
-  screens        Screen[]       @relation("ActiveScene")
+  settings       Json          @default("{}")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  event          Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  presentation   Presentation? @relation(fields: [presentationId], references: [id], onDelete: SetNull)
+  slide          Slide?        @relation("SceneSlide", fields: [slideId], references: [id], onDelete: SetNull)
+  asset          Asset?        @relation("SceneAsset", fields: [assetId], references: [id], onDelete: Restrict)
+  screens        Screen[]      @relation("ActiveScene")
 
   @@unique([eventId, orderIndex])
   @@index([presentationId])
@@ -394,10 +399,10 @@ model AudioCue {
   bank      CueBank? @relation(fields: [bankId], references: [id], onDelete: SetNull)
   asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Restrict)
 
+  @@unique([teamId, hotkey])
   @@index([teamId, category])
   @@index([eventId])
   @@index([bankId])
-  @@unique([teamId, hotkey])
 }
 
 model CueBank {

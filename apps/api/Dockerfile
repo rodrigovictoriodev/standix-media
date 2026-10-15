@@ -19,6 +19,8 @@ RUN pnpm --filter @standix/api build
 
 FROM base AS production
 ENV NODE_ENV=production
+# ffprobe/ffmpeg: technical metadata and thumbnails for audio and video.
+RUN apk add --no-cache ffmpeg
 COPY --from=dependencies /workspace/package.json /workspace/package.json
 COPY --from=dependencies /workspace/pnpm-workspace.yaml /workspace/pnpm-workspace.yaml
 COPY --from=dependencies /workspace/node_modules /workspace/node_modules
