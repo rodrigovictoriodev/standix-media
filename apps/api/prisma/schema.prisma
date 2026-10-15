@@ -1,0 +1,479 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum AssetKind {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  OTHER
+}
+
+enum SlideType {
+  TEXT
+  IMAGE
+  VIDEO
+  HTML
+}
+
+enum EventCategory {
+  CONFERENCE
+  SERVICE
+  THEATER
+  CONVENTION
+  LECTURE
+  CONCERT
+  BROADCAST
+  OTHER
+}
+
+enum EventStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  FINISHED
+  ARCHIVED
+}
+
+enum ScreenType {
+  MAIN
+  STAGE
+  LIVE
+  AUX
+  CUSTOM
+}
+
+model User {
+  id               String          @id @default(cuid())
+  email            String          @unique
+  name             String
+  passwordHash     String
+  status           UserStatus      @default(ACTIVE)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  userRoles        UserRole[]
+  teamMemberships   TeamMembership[]
+  assets           Asset[]         @relation("AssetOwner")
+  presentations    Presentation[]  @relation("PresentationOwner")
+  eventMemberships EventMember[]
+  auditLogs        AuditLog[]
+  refreshTokens    RefreshToken[]
+  passwordResets   PasswordResetToken[]
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  description String
+  isSystem    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  userRoles   UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  description String
+  roleLinks   RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model Team {
+  id            String           @id @default(cuid())
+  workspaceId   String
+  name          String
+  slug          String
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  memberships   TeamMembership[]
+  userRoles     UserRole[]
+  assets        Asset[]
+  folders       AssetFolder[]
+  tags          AssetTag[]
+  categories    Category[]
+  events        Event[]
+  presentations Presentation[]
+  screens       Screen[]
+  audioCues     AudioCue[]
+  cueBanks      CueBank[]
+  videoCues     VideoCue[]
+  auditLogs     AuditLog[]
+
+  @@unique([slug])
+  @@index([workspaceId])
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  teams     Team[]
+}
+
+model TeamMembership {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String
+  createdAt DateTime @default(now())
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  roleId    String
+  teamId    String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  team      Team?    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([userId, teamId])
+  @@index([roleId])
+}
+
+model Asset {
+  id           String      @id @default(cuid())
+  teamId       String
+  ownerId      String?
+  folderId     String?
+  blobId       String
+  kind         AssetKind
+  filename     String
+  displayName  String      @default("")
+  metadata     Json         @default("{}")
+  isFavorite   Boolean      @default(false)
+  deletedAt    DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  team         Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  owner        User?        @relation("AssetOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  folder       AssetFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  blob         MediaBlob    @relation(fields: [blobId], references: [id], onDelete: Restrict)
+  tags         AssetTag[]
+  slides       Slide[]
+  scenes       Scene[]      @relation("SceneAsset")
+  audioCues    AudioCue[]
+  videoCues    VideoCue[]
+
+  @@index([teamId, kind, createdAt])
+  @@index([folderId])
+  @@index([blobId])
+  @@index([teamId, deletedAt])
+  @@index([teamId, isFavorite])
+}
+
+model MediaBlob {
+  id            String   @id @default(cuid())
+  sha256        String   @unique
+  mimeType      String
+  sizeBytes     BigInt
+  storageBucket String
+  storageKey    String
+  createdAt     DateTime @default(now())
+  assets        Asset[]
+
+  @@unique([storageBucket, storageKey])
+}
+
+model AssetFolder {
+  id        String        @id @default(cuid())
+  teamId    String
+  parentId  String?
+  name      String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  team      Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  parent    AssetFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  AssetFolder[] @relation("FolderTree")
+  assets    Asset[]
+
+  @@unique([teamId, parentId, name])
+  @@index([teamId])
+}
+
+model AssetTag {
+  id        String   @id @default(cuid())
+  teamId    String
+  name      String
+  color     String?
+  createdAt DateTime @default(now())
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assets    Asset[]
+
+  @@unique([teamId, name])
+  @@index([teamId])
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  teamId      String
+  name        String
+  slug        String
+  color       String?   @default("#2563FF")
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  events      Event[]
+
+  @@unique([teamId, slug])
+  @@index([teamId])
+}
+
+model Event {
+  id           String        @id @default(cuid())
+  teamId       String
+  categoryId   String?
+  name         String
+  description  String?
+  category     EventCategory @default(OTHER)
+  status       EventStatus   @default(DRAFT)
+  startsAt     DateTime?
+  endsAt       DateTime?
+  timezone     String        @default("UTC")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  team         Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  categoryRef  Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  presentations Presentation[]
+  scenes       Scene[]
+  screens      Screen[]
+  audioCues    AudioCue[]
+  videoCues    VideoCue[]
+  members      EventMember[]
+  auditLogs    AuditLog[]
+
+  @@index([teamId, status, startsAt])
+}
+
+model EventMember {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  role      String   @default("Member")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+}
+
+model Presentation {
+  id              String   @id @default(cuid())
+  teamId          String
+  eventId         String?
+  ownerId         String?
+  activeSlideId   String?
+  title           String
+  description     String?
+  layout          Json     @default("{}")
+  sourceFormat    String   @default("native")
+  sourceMetadata  Json     @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  event           Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  owner           User?    @relation("PresentationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  slides          Slide[]  @relation("PresentationSlides")
+  activeSlide     Slide?   @relation("ActiveSlide", fields: [activeSlideId], references: [id], onDelete: SetNull)
+  scenes          Scene[]
+
+  @@index([teamId, updatedAt])
+  @@index([eventId])
+}
+
+model Slide {
+  id             String       @id @default(cuid())
+  presentationId String
+  assetId        String?
+  type           SlideType    @default(TEXT)
+  orderIndex     Int
+  thumbnailUrl  String?
+  layout         Json          @default("{}")
+  content        Json          @default("{}")
+  durationMs     Int?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  presentation   Presentation  @relation("PresentationSlides", fields: [presentationId], references: [id], onDelete: Cascade)
+  activeFor      Presentation[] @relation("ActiveSlide")
+  asset          Asset?        @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  scenes         Scene[]       @relation("SceneSlide")
+
+  @@unique([presentationId, orderIndex])
+  @@index([assetId])
+}
+
+model Scene {
+  id             String        @id @default(cuid())
+  eventId        String
+  name           String
+  orderIndex     Int
+  presentationId String?
+  slideId        String?
+  assetId        String?
+  settings       Json           @default("{}")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  event          Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  presentation   Presentation?  @relation(fields: [presentationId], references: [id], onDelete: SetNull)
+  slide          Slide?         @relation("SceneSlide", fields: [slideId], references: [id], onDelete: SetNull)
+  asset          Asset?         @relation("SceneAsset", fields: [assetId], references: [id], onDelete: Restrict)
+  screens        Screen[]       @relation("ActiveScene")
+
+  @@unique([eventId, orderIndex])
+  @@index([presentationId])
+}
+
+model Screen {
+  id             String     @id @default(cuid())
+  teamId         String
+  eventId        String?
+  currentSceneId String?
+  name           String
+  slug           String
+  type           ScreenType @default(CUSTOM)
+  settings       Json       @default("{}")
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  team           Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  event          Event?     @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  currentScene   Scene?     @relation("ActiveScene", fields: [currentSceneId], references: [id], onDelete: SetNull)
+
+  @@unique([teamId, slug])
+  @@index([eventId])
+}
+
+model AudioCue {
+  id        String   @id @default(cuid())
+  teamId    String
+  eventId   String?
+  bankId    String?
+  assetId   String
+  name      String
+  category  String?
+  hotkey    String?
+  loop      Boolean  @default(false)
+  volume    Float    @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  event     Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  bank      CueBank? @relation(fields: [bankId], references: [id], onDelete: SetNull)
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@index([teamId, category])
+  @@index([eventId])
+  @@index([bankId])
+  @@unique([teamId, hotkey])
+}
+
+model CueBank {
+  id        String     @id @default(cuid())
+  teamId    String
+  name      String
+  category  String?
+  color     String?    @default("#2563FF")
+  sortOrder Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  team      Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  cues      AudioCue[]
+
+  @@unique([teamId, name])
+  @@index([teamId, sortOrder])
+}
+
+model VideoCue {
+  id        String   @id @default(cuid())
+  teamId    String
+  eventId   String?
+  assetId   String
+  name      String
+  loop      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  event     Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@index([teamId])
+  @@index([eventId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  teamId     String?
+  userId     String?
+  eventId    String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json     @default("{}")
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  team       Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event      Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, createdAt])
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
