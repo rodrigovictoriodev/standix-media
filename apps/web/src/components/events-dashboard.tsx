@@ -237,7 +237,7 @@ export function EventsDashboardView() {
 
       {!accessToken || !teamId ? (
         <p className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted">
-          Entre e informe o ID da equipe para carregar os eventos.
+          Entre na plataforma e selecione uma equipe para carregar os eventos.
         </p>
       ) : (
         <>

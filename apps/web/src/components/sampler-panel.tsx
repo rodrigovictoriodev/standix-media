@@ -65,7 +65,7 @@ export function SamplerPanel() {
   const api = useCallback(
     async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
       if (!token || !teamId)
-        throw new Error("Entre e informe o ID da equipe para conectar.");
+        throw new Error("Entre na plataforma e selecione uma equipe para conectar.");
       return apiRequest<T>(path, init);
     },
     [teamId, token],

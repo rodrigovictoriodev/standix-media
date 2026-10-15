@@ -115,7 +115,7 @@ export function PresentationPlayer({
           </p>
         ) : !teamId || !token ? (
           <p className="px-6 text-center text-sm text-white/60">
-            Entre e informe o ID da equipe na plataforma antes de abrir o
+            Entre na plataforma e selecione uma equipe antes de abrir o
             player.
           </p>
         ) : (
