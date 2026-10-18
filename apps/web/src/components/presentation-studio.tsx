@@ -165,7 +165,10 @@ export function PresentationStudio() {
         item.id === presentation.id
           ? {
               ...item,
-              slides: [...item.slides, created],
+              // The realtime broadcast may have added this slide already.
+              slides: item.slides.some((slide) => slide.id === created.id)
+                ? item.slides
+                : [...item.slides, created],
               activeSlideId: item.activeSlideId ?? created.id,
             }
           : item,
@@ -380,6 +383,13 @@ export function PresentationStudio() {
                     className="rounded-lg border border-secondary/40 bg-secondary/10 px-3 py-2 text-xs text-secondary"
                   >
                     Abrir player ↗
+                  </Link>
+                  <Link
+                    href={`/screen/main?presentation=${presentation.id}`}
+                    target="_blank"
+                    className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-xs text-white"
+                  >
+                    Projetar em /screen/main ↗
                   </Link>
                 </div>
               </div>

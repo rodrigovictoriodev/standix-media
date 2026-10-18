@@ -18,8 +18,10 @@ type PresentationData = {
 
 export function PresentationPlayer({
   presentationId,
+  chromeless = false,
 }: {
   presentationId: string;
+  chromeless?: boolean;
 }) {
   const [presentation, setPresentation] = useState<PresentationData | null>(
     null,
@@ -83,7 +85,9 @@ export function PresentationPlayer({
 
   return (
     <main className="flex min-h-screen flex-col bg-black text-white">
-      <header className="flex items-center justify-between border-b border-white/10 px-5 py-3">
+      <header
+        className={`${chromeless ? "hidden" : "flex"} items-center justify-between border-b border-white/10 px-5 py-3`}
+      >
         <div>
           <p className="text-[10px] uppercase tracking-[0.3em] text-secondary">
             Standix · Presentation Player
@@ -115,8 +119,7 @@ export function PresentationPlayer({
           </p>
         ) : !teamId || !token ? (
           <p className="px-6 text-center text-sm text-white/60">
-            Entre na plataforma e selecione uma equipe antes de abrir o
-            player.
+            Entre na plataforma e selecione uma equipe antes de abrir o player.
           </p>
         ) : (
           <PresentationSlideRenderer
@@ -126,7 +129,9 @@ export function PresentationPlayer({
           />
         )}
       </section>
-      <footer className="border-t border-white/10 px-5 py-2 text-right text-xs text-white/40">
+      <footer
+        className={`${chromeless ? "hidden" : ""} border-t border-white/10 px-5 py-2 text-right text-xs text-white/40`}
+      >
         {activeSlide
           ? `${activeSlide.orderIndex + 1} / ${presentation?.slides.length ?? 0}`
           : "Aguardando slide"}
