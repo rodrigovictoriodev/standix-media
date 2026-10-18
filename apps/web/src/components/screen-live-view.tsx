@@ -136,7 +136,7 @@ export function ScreenLiveView({ screen }: { screen: ScreenSlug }) {
             <p className="mt-6 text-2xl font-medium text-white">
               {state.content}
             </p>
-            <div className="mt-5 text-xs text-muted">
+            <div className="mt-5 text-xs text-muted" suppressHydrationWarning>
               Última atualização:{" "}
               {new Date(state.updatedAt).toLocaleString("pt-BR")}
             </div>
