@@ -164,7 +164,22 @@ export function useLibraryMutations() {
     }),
     destroy: useMutation({
       mutationFn: (id: string) => apiRequest(assetPath(id), json("DELETE")),
-      onSuccess,
+      onSuccess: async (_data, id) => {
+        const detailKey = libraryKeys.asset(teamId, id);
+        // The asset no longer exists: drop it from every cached list and stop
+        // its detail/url queries before anything can refetch them (404).
+        await queryClient.cancelQueries({ queryKey: detailKey });
+        queryClient.setQueriesData<Asset[]>(
+          { queryKey: [...libraryKeys.all(teamId), "assets"] },
+          (list) =>
+            Array.isArray(list) ? list.filter((a) => a.id !== id) : list,
+        );
+        queryClient.removeQueries({ queryKey: detailKey });
+        await queryClient.invalidateQueries({
+          queryKey: libraryKeys.all(teamId),
+          predicate: (query) => query.queryKey[2] !== "asset",
+        });
+      },
     }),
     createFolder: useMutation({
       mutationFn: (body: { name: string; parentId?: string | null }) =>
