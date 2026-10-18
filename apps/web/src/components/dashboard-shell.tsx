@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { STANDIX_LOGO_SRC } from "@standix/ui";
 import { SessionControls } from "./session-controls";
 
 const navItems = [
@@ -13,11 +14,7 @@ const navItems = [
 ];
 
 type DashboardSection =
-  | "Dashboard"
-  | "Biblioteca"
-  | "Eventos"
-  | "Apresentações"
-  | "Sampler";
+  "Dashboard" | "Biblioteca" | "Eventos" | "Apresentações" | "Sampler";
 
 export function DashboardShell({
   children,
@@ -30,9 +27,11 @@ export function DashboardShell({
     <div className="flex min-h-screen bg-background text-foreground">
       <aside className="hidden w-72 border-r border-border bg-surface/80 p-6 md:block">
         <div className="mb-10 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-white">
-            S
-          </div>
+          <img
+            src={STANDIX_LOGO_SRC}
+            alt="Standix"
+            className="h-10 w-10 object-contain"
+          />
           <div>
             <div className="text-lg font-semibold">Standix</div>
             <div className="text-xs uppercase tracking-[0.2em] text-muted">
